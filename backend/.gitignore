@@ -1,0 +1,11 @@
+go.work
+
+uploads/
+
+.DS_Store
+bin/
+/.idea
+.idea
+.env
+.vscode
+Thumbs.db 
