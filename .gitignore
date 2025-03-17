@@ -1,0 +1,14 @@
+
+
+.DS_Store
+bin/
+/.idea
+.idea
+.env
+.vscode
+logs
+*.log
+node_modules/
+.eslintcache
+.next
+out 
