@@ -12,12 +12,12 @@ export default function Home() {
     speed={0.5}
     />
     <VideoUploader />
-    <div className="flex flex-col items-center justify-center mt-2">
+    <div className="flex flex-col items-center justify-center mb-20 mt-40">
       <GlitchText
         speed={4}
         enableShadows={true}
         enableOnHover={false}
-        className='glitch text-4xl text-white'
+        className='glitch text-2xl text-white'
       >
         Censor AI
       </GlitchText>
