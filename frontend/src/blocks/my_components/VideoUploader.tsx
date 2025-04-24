@@ -69,15 +69,48 @@ export default function VideoUploader() {
     setSelectedOption(null);
   };
 
-  const handleConvert = () => {
-    if (!selectedRating || !selectedOption) return;
-    
-    // Here you would implement the actual conversion logic
+  const handleConvert = async () => {
+    if (!selectedRating || !selectedOption || !video) {
+      console.warn("Missing required input(s)");
+      return;
+    }
+  
     console.log(`Converting to ${selectedRating} using ${selectedOption} option`);
-    
-    // For now, just show an alert
-    alert(`Video will be converted to ${selectedRating} using ${selectedOption} option`);
+  
+    const formData = new FormData();
+    formData.append("age", "6");
+    formData.append("video_type", "trim");
+    formData.append("video_path", video); // this is the File object from your input
+    formData.append("ratings", JSON.stringify(ratings)); // assuming ratings is an array
+  
+    try {
+      const response = await fetch("http://localhost:8000/convert", {
+        method: "POST",
+        body: formData, // no need to set Content-Type; fetch does it for FormData
+      });
+  
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+      }
+  
+      const result = await response.json();
+      console.log("Conversion successful:", result);
+
+      if (result.download_url) {
+        const link = document.createElement("a");
+        link.href = result.download_url;
+        link.download = result.filename || "processed_video.mp4"; // optional: default fallback name
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+
+    } catch (error) {
+      console.error("Error during conversion:", error);
+    }
   };
+
 
   // Function to get the highest age rating
   const getHighestRating = () => {
@@ -181,8 +214,8 @@ export default function VideoUploader() {
                     key={option} 
                     className={`py-2 px-8 rounded-lg font-medium transition-colors border ${   
                       selectedRating === option 
-                        ? 'bg-white text-black border-white' 
-                        : 'bg-black/50 text-white border-gray-500'
+                               ? 'bg-white text-black border-white' 
+                            : 'bg-black/50 text-white border-gray-500'
                     }`}
                     onClick={() => setSelectedRating(option)}
                   >
