@@ -18,8 +18,8 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"gocv.io/x/gocv"
 	"github.com/joho/godotenv"
+	"gocv.io/x/gocv"
 )
 
 const (
@@ -36,7 +36,7 @@ type RatingResult struct {
 }
 
 type ConvertRequest struct {
-	Age       string            `json:"age" binding:"required,oneof=6 12 16"`
+	Age       string         `json:"age" binding:"required,oneof=6 12 16"`
 	Ratings   []RatingResult `json:"ratings" binding:"required"`
 	VideoType string         `json:"video_type" binding:"required,oneof=blur trim"`
 	VideoPath string         `json:"video_path" binding:"required"`
@@ -57,9 +57,9 @@ type RatingData struct {
 
 func main() {
 	err := godotenv.Load()
-    if err != nil {
-        log.Fatal("Error loading .env file")
-    }
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
 
 	os.MkdirAll(uploadFolder, os.ModePerm)
 	os.MkdirAll(processedFolder, os.ModePerm)
@@ -227,9 +227,9 @@ func analyzeFrameWithOpenAI(dataURL string) (string, string, error) {
 	}
 
 	type ContentItem struct {
-		Type     string     `json:"type"`
-		Text     string     `json:"text,omitempty"`
-		ImageURL *ImageURL  `json:"image_url,omitempty"`
+		Type     string    `json:"type"`
+		Text     string    `json:"text,omitempty"`
+		ImageURL *ImageURL `json:"image_url,omitempty"`
 	}
 
 	promptText := `Analyze the image and rate it for violence and nudity based on these guidelines:
@@ -280,7 +280,7 @@ Return a valid JSON object with two fields:
 
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+ apiKey)
+	req.Header.Set("Authorization", "Bearer "+apiKey)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -327,17 +327,17 @@ func convertVideo(c *gin.Context) {
 	age := c.PostForm("age")
 	videoType := c.PostForm("video_type")
 	ratingsStr := c.PostForm("ratings")
-	
+
 	log.Printf("Raw ratings string: %s", ratingsStr)
-	
+
 	file, err := c.FormFile("video_path")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "No video file provided"})
 		return
 	}
-	
+
 	var ratings []RatingResult
-	
+
 	if ratingsStr != "" {
 		if err := json.Unmarshal([]byte(ratingsStr), &ratings); err != nil {
 			log.Printf("Error parsing ratings: %v", err)
@@ -346,11 +346,11 @@ func convertVideo(c *gin.Context) {
 		}
 		log.Printf("Parsed %d rating segments", len(ratings))
 		for i, r := range ratings {
-			log.Printf("Rating %d: Start=%.2f, End=%.2f, Rating=%s, Notes=%s", 
+			log.Printf("Rating %d: Start=%.2f, End=%.2f, Rating=%s, Notes=%s",
 				i, r.Start, r.End, r.Rating, r.Notes)
 		}
 	}
-	
+
 	if age == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Age is required"})
 		return
@@ -360,12 +360,12 @@ func convertVideo(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Video type is required"})
 		return
 	}
-	
+
 	if age != "6" && age != "12" && age != "16" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Age must be one of: 6, 12, 16"})
 		return
 	}
-	
+
 	if videoType != "blur" && videoType != "trim" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Video type must be one of: blur, trim"})
 		return
@@ -386,9 +386,9 @@ func convertVideo(c *gin.Context) {
 		os.Remove(filename)
 		return
 	}
-	
+
 	log.Printf("Converting age string '%s' to integer: %d", age, ageInt)
-	
+
 	outputPath, err := processVideoByAge(filename, ageInt, ratings, videoType)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -399,13 +399,13 @@ func convertVideo(c *gin.Context) {
 	os.Remove(filename)
 
 	baseFilename := filepath.Base(outputPath)
-	
+
 	host := c.Request.Host
 	scheme := "http"
 	if c.Request.TLS != nil {
 		scheme = "https"
 	}
-	
+
 	downloadURL := fmt.Sprintf("%s://%s/download/%s", scheme, host, baseFilename)
 
 	c.JSON(http.StatusOK, gin.H{
@@ -465,7 +465,7 @@ func processVideoByAge(videoPath string, age int, ratings []RatingResult, videoT
 
 	if videoType == "blur" {
 		err = blurInappropriateContent(video, writer, ratings, age, fps, totalFrames)
-	} else { 
+	} else {
 		err = trimInappropriateContent(video, writer, ratings, age, fps, totalFrames) // trim
 	}
 
@@ -545,11 +545,11 @@ func trimInappropriateContent(video *gocv.VideoCapture, writer *gocv.VideoWriter
 			const epsilon = 0.001
 			isAfterStart := timestamp >= (rating.Start - epsilon)
 			isBeforeEnd := timestamp <= (rating.End + epsilon)
-			
+
 			if isAfterStart && isBeforeEnd {
 				inRatedSegment = true
 				matchedRating = rating.Rating
-				
+
 				// Only include if the rating is appropriate for the age
 				ratingValue := getRatingValue(rating.Rating)
 				if ratingValue <= age {
@@ -569,8 +569,8 @@ func trimInappropriateContent(video *gocv.VideoCapture, writer *gocv.VideoWriter
 			shouldInclude = false
 		}
 
-		if frameIndex % int(fps) == 0 { // Log once per second
-			log.Printf("Frame %d (%.2fs): Rating=%s, InRatedSegment=%v, Include=%v", 
+		if frameIndex%int(fps) == 0 { // Log once per second
+			log.Printf("Frame %d (%.2fs): Rating=%s, InRatedSegment=%v, Include=%v",
 				frameIndex, timestamp, matchedRating, inRatedSegment, shouldInclude)
 		}
 
@@ -582,7 +582,7 @@ func trimInappropriateContent(video *gocv.VideoCapture, writer *gocv.VideoWriter
 		frameIndex++
 	}
 
-	log.Printf("Trim complete: Processed %d frames, Included %d frames (%.2f seconds)", 
+	log.Printf("Trim complete: Processed %d frames, Included %d frames (%.2f seconds)",
 		frameIndex, includedFrames, float64(includedFrames)/fps)
 	return nil
 }
@@ -603,4 +603,4 @@ func getRatingValue(rating string) int {
 	}
 	log.Printf("Converting rating '%s' to value: %d", rating, value)
 	return value
-} 
+}
