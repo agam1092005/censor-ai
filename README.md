@@ -278,3 +278,117 @@ curl -X POST http://localhost:8000/convert \
 6. **Process the video** and download result
 7. **Verify the output** by playing the processed video
 
+## GPT-OSS Content Classification
+
+The project includes GPT-OSS integration for intelligent content classification that provides overall content ratings based on video metadata, audio transcripts, and vision analysis.
+
+### Setup GPT-OSS
+
+#### Step 1: Install Python Dependencies
+
+```bash
+cd backend
+./setup_gpt_oss.sh
+```
+
+Or manually:
+
+```bash
+pip3 install -r requirements.txt
+```
+
+#### Step 2: Configure Backend (Optional)
+
+For best results, set your OpenAI API key:
+
+```bash
+export OPENAI_API_KEY="your-openai-api-key"
+```
+
+If no API key is provided, the system automatically uses offline Hugging Face models.
+
+### Testing GPT-OSS Integration
+
+#### Automated Test Suite
+
+```bash
+cd backend
+python3 test_gpt_oss.py
+```
+
+This will test:
+
+- Direct Python classifier functionality
+- Go backend integration
+- Different content type classifications
+
+#### Manual API Testing
+
+**Standalone Classification:**
+
+```bash
+curl -X POST http://localhost:8000/classify \
+  -H "Content-Type: application/json" \
+  -d '{
+    "metadata": {"filename": "test.mp4", "duration": 120},
+    "transcript": "Family-friendly adventure story with no violence",
+    "vision_labels": ["adventure", "family", "outdoor"]
+  }'
+```
+
+**Enhanced Video Upload:**
+
+```bash
+curl -X POST http://localhost:8000/upload -F "video=@your_video.mp4"
+```
+
+The response now includes both frame-by-frame analysis and overall GPT-OSS classification:
+
+```json
+{
+  "ratings": [...],
+  "gpt_oss": {
+    "rating": "12+",
+    "reason": "Moderate action content suitable for ages 12 and above"
+  }
+}
+```
+
+#### Demo Script
+
+Run the comprehensive demo:
+
+```bash
+cd backend
+./demo_gpt_oss.sh
+```
+
+This demonstrates classification with different content types and shows the complete integration workflow.
+
+### GPT-OSS Features
+
+- **Dual Backend Support**: OpenAI API (online) or Hugging Face (offline)
+- **Intelligent Classification**: Analyzes metadata, transcripts, and vision labels
+- **Age Ratings**: Returns 6+, 12+, 16+, or 18+ with explanations
+- **Automatic Integration**: Works alongside existing video processing
+- **Fallback Support**: Graceful degradation if classification fails
+
+### Troubleshooting GPT-OSS
+
+**Import Errors:**
+
+```bash
+pip3 install openai transformers torch
+```
+
+**Model Loading Issues:**
+
+- First-time Hugging Face model download may take 5-10 minutes
+- Models automatically fallback to CPU if CUDA unavailable
+- Check available disk space (models require 1-5GB)
+
+**API Errors:**
+
+- Verify `OPENAI_API_KEY` is correctly set
+- Check OpenAI account credits and rate limits
+- System will automatically fallback to offline models

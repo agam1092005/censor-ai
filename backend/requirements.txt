@@ -1,0 +1,13 @@
+# GPT-OSS Classifier Dependencies
+
+# Core dependencies
+torch>=2.0.0
+transformers>=4.21.0
+openai>=1.0.0
+
+# Optional dependencies for better performance
+accelerate>=0.20.0
+bitsandbytes>=0.39.0
+
+# Utilities
+requests>=2.25.0

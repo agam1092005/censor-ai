@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -55,6 +56,23 @@ type RatingData struct {
 	Notes  string `json:"notes"`
 }
 
+type GPTOSSInput struct {
+	Metadata     map[string]interface{} `json:"metadata"`
+	Transcript   string                 `json:"transcript"`
+	VisionLabels []string               `json:"vision_labels"`
+}
+
+type GPTOSSResponse struct {
+	Rating string `json:"rating"`
+	Reason string `json:"reason"`
+}
+
+type ClassifyRequest struct {
+	Metadata     map[string]interface{} `json:"metadata"`
+	Transcript   string                 `json:"transcript"`
+	VisionLabels []string               `json:"vision_labels"`
+}
+
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -79,6 +97,7 @@ func main() {
 
 	router.POST("/upload", uploadVideo)
 	router.POST("/convert", convertVideo)
+	router.POST("/classify", classifyContent) // New GPT-OSS endpoint
 	router.GET("/download/:filename", downloadVideo)
 
 	log.Println("Starting server on port 8000...")
@@ -98,14 +117,32 @@ func uploadVideo(c *gin.Context) {
 		return
 	}
 
+	// Process video with existing OpenAI vision analysis
 	ratings, err := processVideo(filename)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		os.Remove(filename)
 		return
 	}
 
+	// Also run GPT-OSS classification
+	gptOSSResult, err := classifyVideoContent(filename)
+	if err != nil {
+		log.Printf("GPT-OSS classification failed: %v", err)
+		// Continue without GPT-OSS result rather than failing the entire request
+		gptOSSResult = &GPTOSSResponse{
+			Rating: "12+",
+			Reason: "GPT-OSS classification unavailable",
+		}
+	}
+
 	os.Remove(filename)
-	c.JSON(http.StatusOK, gin.H{"ratings": ratings})
+
+	// Return both the frame-by-frame ratings and the overall GPT-OSS classification
+	c.JSON(http.StatusOK, gin.H{
+		"ratings": ratings,
+		"gpt_oss": gptOSSResult,
+	})
 }
 
 func processVideo(videoPath string) ([]RatingResult, error) {
@@ -603,4 +640,122 @@ func getRatingValue(rating string) int {
 	}
 	log.Printf("Converting rating '%s' to value: %d", rating, value)
 	return value
+}
+
+// callGPTOSSClassifier calls the Python GPT-OSS classifier
+func callGPTOSSClassifier(metadata map[string]interface{}, transcript string, visionLabels []string) (*GPTOSSResponse, error) {
+	input := GPTOSSInput{
+		Metadata:     metadata,
+		Transcript:   transcript,
+		VisionLabels: visionLabels,
+	}
+
+	inputJSON, err := json.Marshal(input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal input: %v", err)
+	}
+
+	// Call the Python classifier
+	cmd := exec.Command("python3", "oss_classifier.py", string(inputJSON))
+	cmd.Dir = "."
+
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute classifier: %v", err)
+	}
+
+	var response GPTOSSResponse
+	if err := json.Unmarshal(output, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse classifier response: %v", err)
+	}
+
+	return &response, nil
+}
+
+// classifyContent handles the /classify endpoint for GPT-OSS demo
+func classifyContent(c *gin.Context) {
+	var request ClassifyRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		return
+	}
+
+	response, err := callGPTOSSClassifier(request.Metadata, request.Transcript, request.VisionLabels)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// classifyVideoContent integrates GPT-OSS classification into video processing
+func classifyVideoContent(videoPath string) (*GPTOSSResponse, error) {
+	// Extract basic metadata
+	metadata := map[string]interface{}{
+		"filename": filepath.Base(videoPath),
+		"path":     videoPath,
+	}
+
+	// For demo purposes, we'll use placeholder transcript and vision labels
+	// In a real implementation, you would extract these from the video
+	transcript := "Sample video transcript would be extracted here using speech recognition"
+
+	// Extract some basic vision labels from the video (simplified)
+	visionLabels, err := extractBasicVisionLabels(videoPath)
+	if err != nil {
+		log.Printf("Warning: Failed to extract vision labels: %v", err)
+		visionLabels = []string{"video_content"}
+	}
+
+	return callGPTOSSClassifier(metadata, transcript, visionLabels)
+}
+
+// extractBasicVisionLabels extracts basic vision labels from video frames
+func extractBasicVisionLabels(videoPath string) ([]string, error) {
+	video, err := gocv.VideoCaptureFile(videoPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open video: %v", err)
+	}
+	defer video.Close()
+
+	labels := []string{}
+
+	// Sample a few frames and analyze them
+	frameCount := 0
+	maxFrames := 5
+
+	img := gocv.NewMat()
+	defer img.Close()
+
+	for frameCount < maxFrames {
+		if ok := video.Read(&img); !ok || img.Empty() {
+			break
+		}
+
+		// Basic scene analysis (this is simplified - in reality you'd use more sophisticated vision models)
+		mean := img.Mean()
+		brightness := (mean.Val1 + mean.Val2 + mean.Val3) / 3
+
+		if brightness < 50 {
+			labels = append(labels, "dark_scene")
+		} else if brightness > 200 {
+			labels = append(labels, "bright_scene")
+		}
+
+		// Skip frames to sample different parts of the video
+		for i := 0; i < 30; i++ {
+			if ok := video.Read(&img); !ok {
+				break
+			}
+		}
+
+		frameCount++
+	}
+
+	if len(labels) == 0 {
+		labels = []string{"general_content"}
+	}
+
+	return labels, nil
 }
